@@ -1,0 +1,19 @@
+import os
+
+# Root repository directory
+ROOT_PATH = '/path/to/deepquake/'
+
+DATASET_DIR = os.path.join(ROOT_PATH, 'dataset/')
+PATH_TRAIN_EVENT = os.path.join(DATASET_DIR, 'events/train')
+PATH_TRAIN_NOISE = os.path.join(DATASET_DIR, 'noise/train')
+
+PATH_EVAL_EVENT = os.path.join(DATASET_DIR, 'events/eval')
+PATH_EVAL_NOISE = os.path.join(DATASET_DIR, 'noise/eval')
+
+PATH_TEST_EVENT = os.path.join(DATASET_DIR, 'events/test')
+PATH_TEST_NOISE = os.path.join(DATASET_DIR, 'noise/test')
+
+# MongoDB credentials
+MONGODB_HOST = '127.0.0.1'
+MONGODB_USER = 'username'
+MONGODB_PASS = 'password'

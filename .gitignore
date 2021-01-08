@@ -1,0 +1,6 @@
+*.pyc
+*~
+output*/
+env/
+**/*.h5
+deepquake/local_config.py

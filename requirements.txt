@@ -1,0 +1,17 @@
+numpy
+grpcio
+python-gflags
+dask
+argparse
+geojson
+geopy
+folium
+tensorflow
+obspy
+tqdm
+setproctitle
+pandas
+scikit-image
+scikit-learn
+pytest
+PyQt5
