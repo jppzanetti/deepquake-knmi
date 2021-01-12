@@ -17,6 +17,16 @@ Some configuration variables also need to be filled. Rename
 with the full path of the `deepquake/` directory, and the MongoDB
 credentials (for storing prediction results).
 
+## Getting input metadata
+
+The input event and station information can be retrieved from FDSN
+webservices. For example, how to get input data from 2014 to 2018:
+
+```
+wget "http://rdsa.knmi.nl/fdsnws/event/1/query?starttime=2014-01-01&endtime=2019-01-01" -O inputdata/event_catalog.xml
+wget "http://rdsa.knmi.nl/fdsnws/station/1/query?level=response&starttime=2014-01-01&endtime=2019-01-01" -O inputdata/NL_stations_2014-2018.xml
+```
+
 ## Get samples
 
 To fetch sample data use the `deepquake/preprocess/get_streams.py`
@@ -34,7 +44,7 @@ from different stations but corresponding to the same event.
 Example:
 
 ```
-python deepquake/preprocess/get_streams.py --inventory inputdata/NL_stations_2014-2018_more.xml --events inputdata/event_catalog.xml --output streams/ --event_fraction <0.01~1.0> --use-fdsn
+python deepquake/preprocess/get_streams.py --inventory inputdata/NL_stations_2014-2018.xml --events inputdata/event_catalog.xml --output streams/ --event_fraction <0.01~1.0> --use-fdsn
 python scripts/split_sets.py -i streams/filter/0 -o dataset/noise/
 python scripts/split_sets.py -i streams/filter/1 -o dataset/events/
 python scripts/split_sets.py -i streams/filter/2 -o dataset/events/
