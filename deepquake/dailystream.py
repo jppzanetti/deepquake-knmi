@@ -88,7 +88,7 @@ class DailyStream:
             sample.resample(TARGET_FREQ)
             sample.normalize(global_max=True)
 
-            # TODO: compute frequency data
+            # Compute frequency data
             freq_data = None
             if compute_frequencies:
                 freq_data = []

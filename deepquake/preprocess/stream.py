@@ -10,6 +10,7 @@ import tensorflow as tf
 import logging
 
 from random import random
+from scipy.signal import stft
 
 # Workaround to fix logging, might break tf logging
 import absl.logging
@@ -340,14 +341,20 @@ class Stream:
         end_time = np.int64(stream[0].stats.endtime.timestamp)
 
         # Format stream data
-        data = np.zeros((n_traces, n_samples), dtype=np.float32)
+        time_data = np.zeros((n_traces, n_samples), dtype=np.float32)
         for i in range(n_traces):
-            data[i, :] = stream[i].data[...]
+            time_data[i, :] = stream[i].data[...]
+
+        # Compute spectrograms
+        freq_data = []
+        for trace in stream:
+            _, _, zxx = stft(trace.data, window='hanning', nperseg=120)
+            freq_data.append(np.abs(zxx))
 
         feature = {
             'window_size': Stream._int64_feature(n_samples),
             'n_traces': Stream._int64_feature(n_traces),
-            'data': Stream._bytes_feature(data.tobytes()),
+            'time_data': Stream._bytes_feature(time_data.tobytes()),
             'stream_max': Stream._float_feature(stream_max),
             'event_type': Stream._int64_feature(event_type),
             'distance': Stream._float_feature(distance),
@@ -355,7 +362,10 @@ class Stream:
             'depth': Stream._float_feature(depth),
             'azimuth': Stream._float_feature(azimuth),
             'start_time': Stream._int64_feature(start_time),
-            'end_time': Stream._int64_feature(end_time)
+            'end_time': Stream._int64_feature(end_time),
+            'spec0': Stream._bytes_feature(freq_data[0].tobytes()),
+            'spec1': Stream._bytes_feature(freq_data[1].tobytes()),
+            'spec2': Stream._bytes_feature(freq_data[2].tobytes())
         }
         example = tf.train.Example(features=tf.train.Features(feature=feature))
 

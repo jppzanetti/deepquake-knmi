@@ -13,7 +13,7 @@ _DATA_STREAM_LENGTH = 2000
 _FEATURES = {
     'window_size': tf.io.FixedLenFeature([], tf.int64),
     'n_traces': tf.io.FixedLenFeature([], tf.int64),
-    'data': tf.io.FixedLenFeature([], tf.string),
+    'time_data': tf.io.FixedLenFeature([], tf.string),
     'stream_max': tf.io.FixedLenFeature([], tf.float32),
     'event_type': tf.io.FixedLenFeature([], tf.int64),
     'distance': tf.io.FixedLenFeature([], tf.float32),
@@ -21,7 +21,10 @@ _FEATURES = {
     'depth': tf.io.FixedLenFeature([], tf.float32),
     'azimuth': tf.io.FixedLenFeature([], tf.float32),
     'start_time': tf.io.FixedLenFeature([], tf.int64),
-    'end_time': tf.io.FixedLenFeature([], tf.int64)
+    'end_time': tf.io.FixedLenFeature([], tf.int64),
+    'spec0': tf.io.FixedLenFeature([], tf.string),
+    'spec1': tf.io.FixedLenFeature([], tf.string),
+    'spec2': tf.io.FixedLenFeature([], tf.string)
 }
 
 
@@ -88,7 +91,7 @@ def _initialize_classes_bins():
 CLASSES_BINS = _initialize_classes_bins()
 
 
-def _cnn_layers_time(amp_input, maxValStream, feature_name):
+def _cnn_layers_time(amp_input, freq_input, maxValStream, feature_name):
     if feature_name == 'detection':
         output = detection_NN_architecture_time(amp_input)
     if feature_name == 'magnitude':
@@ -99,7 +102,7 @@ def _cnn_layers_time(amp_input, maxValStream, feature_name):
     return output
 
 
-def _cnn_layers_freq(freq_input, maxValStream, feature_name):
+def _cnn_layers_freq(amp_input, freq_input, maxValStream, feature_name):
     if feature_name == 'detection':
         output = detection_NN_architecture_freq(freq_input)
     if feature_name == 'magnitude':
@@ -319,15 +322,19 @@ def load_model(feature_name, use_frequency=False):
 
     """
     model_input_amp = layers.Input(shape=(_DATA_STREAM_LENGTH, 3))
+    model_input_freq = layers.Input(shape=(61, 35, 3))
     model_input_max = layers.Input(shape=())
 
     if use_frequency:
-        model_input_freq = layers.Input(shape=(61, 35, 3))
-        model_output = _cnn_layers_freq(model_input_freq, model_input_max, feature_name)
-        model = Model(inputs=[model_input_freq, model_input_max], outputs=model_output)
+        model_output = _cnn_layers_freq(model_input_amp, model_input_freq, model_input_max,
+                                        feature_name)
+        model = Model(inputs=[model_input_amp, model_input_freq, model_input_max],
+                      outputs=model_output)
     else:
-        model_output = _cnn_layers_time(model_input_amp, model_input_max, feature_name)
-        model = Model(inputs=[model_input_amp, model_input_max], outputs=model_output)
+        model_output = _cnn_layers_time(model_input_amp, model_input_freq, model_input_max,
+                                        feature_name)
+        model = Model(inputs=[model_input_amp, model_input_freq, model_input_max],
+                      outputs=model_output)
 
     model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.0001),
                   loss='sparse_categorical_crossentropy',
@@ -361,13 +368,24 @@ def _extract_fn(data_record, feature_name):
     sampleData = tf.io.parse_single_example(data_record, all_data)
 
     # Convert and reshape stream data
-    data = tf.io.decode_raw(sampleData['data'], tf.float32)
-    data = tf.slice(data, [0], [3 * _DATA_STREAM_LENGTH])
-    data.set_shape([3 * _DATA_STREAM_LENGTH])
-    data = tf.reshape(data, [3, _DATA_STREAM_LENGTH])
-    data = tf.transpose(data, [1, 0])
+    time_data = tf.io.decode_raw(sampleData['time_data'], tf.float32)
+    time_data = tf.slice(time_data, [0], [3 * _DATA_STREAM_LENGTH])
+    time_data.set_shape([3 * _DATA_STREAM_LENGTH])
+    time_data = tf.reshape(time_data, [3, _DATA_STREAM_LENGTH])
+    time_data = tf.transpose(time_data, [1, 0])
 
-    # Read stream max
+    # Convert and reshape spectrogram data
+    amp1 = tf.io.decode_raw(sampleData['spec0'], tf.float64)
+    amp2 = tf.io.decode_raw(sampleData['spec1'], tf.float64)
+    amp3 = tf.io.decode_raw(sampleData['spec2'], tf.float64)
+    amp1.set_shape([61 * 35])
+    amp2.set_shape([61 * 35])
+    amp3.set_shape([61 * 35])
+    freq_data = tf.concat([amp1, amp2, amp3], 0)
+    freq_data = tf.reshape(freq_data, [3, 61, 35])
+    freq_data = tf.transpose(freq_data, [1, 2, 0])
+
+    # Read stream max amplitude
     maxValStream = sampleData['stream_max']
 
     # Dictionary to hold output classes
@@ -395,7 +413,7 @@ def _extract_fn(data_record, feature_name):
     else:
         raise ValueError('Invalid feature name.')
 
-    return data, maxValStream, out_label
+    return time_data, freq_data, maxValStream, out_label
 
 
 def load_dataset(filenames, feature_name):
@@ -413,15 +431,17 @@ def load_dataset(filenames, feature_name):
     -------
     `TFRecordDataset`
         A TensorFlow container of the whole dataset.
-    """
 
+    """
     dataset = tf.data.TFRecordDataset(filenames)
     dataset = dataset.map(lambda x: _extract_fn(x, feature_name))
 
-    inputs = dataset.map(lambda x, y, z: x)
-    maxval = dataset.map(lambda x, y, z: y)
-    targets = dataset.map(lambda x, y, z: z)
+    time_inputs = dataset.map(lambda t, s, m, y: t)
+    freq_inputs = dataset.map(lambda t, s, m, y: s)
+    maxval = dataset.map(lambda t, s, m, y: m)
+    targets = dataset.map(lambda t, s, m, y: y)
 
-    full_dataset = tf.data.Dataset.zip((tf.data.Dataset.zip((inputs, maxval)), targets))
+    full_dataset = tf.data.Dataset.zip((tf.data.Dataset.zip((time_inputs, freq_inputs, maxval)),
+                                        targets))
 
     return full_dataset

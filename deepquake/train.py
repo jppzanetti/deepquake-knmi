@@ -57,7 +57,6 @@ if __name__ == '__main__':
     bs = 128
     n_files = len(files)
     random.shuffle(files)
-    print("feature "+args.feature)
     train_data = load_dataset(files, args.feature)
     random.shuffle(eval_files)
     eval_data = load_dataset(eval_files, args.feature)
@@ -66,9 +65,9 @@ if __name__ == '__main__':
     train_data = train_data.cache().shuffle(512).repeat(epochsTrain + 10).batch(bs)
     eval_data = eval_data.cache().shuffle(512).repeat(epochsTrain + 10).batch(bs)
 
-    log_dir = "/data_2/logs/fit/" + args.feature + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    #tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1,
-    #                                                      write_graph=True, write_images=True)
+    # log_dir = '~/tmp/' + args.feature + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1,
+    #                                                       write_graph=True, write_images=True)
 
     stopping_callbacks = [
         EarlyStopping(patience=10, monitor='val_accuracy', min_delta=0, mode='max'),
@@ -83,5 +82,3 @@ if __name__ == '__main__':
               epochs=epochsTrain, steps_per_epoch=steps,
               verbose=1, callbacks=stopping_callbacks,
               validation_data=eval_data, validation_steps=val_steps)
-
-    # model.save_weights(args.feature + '_saved_wt.h5')
